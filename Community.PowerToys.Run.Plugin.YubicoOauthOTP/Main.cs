@@ -36,6 +36,11 @@ namespace Community.PowerToys.Run.Plugin.YubicoOauthOTP
 
         private bool Disposed { get; set; }
 
+        private string _cachedOutput;
+        private DateTime _lastCacheUpdate;
+        private readonly TimeSpan _cacheDuration = TimeSpan.FromSeconds(10);
+
+
         /// <summary>
         /// Return a filtered list, based on the given query.
         /// </summary>
@@ -139,6 +144,11 @@ namespace Community.PowerToys.Run.Plugin.YubicoOauthOTP
         }
         private string RunCommand(string fileName, string arguments)
         {
+            if (_cachedOutput != null && DateTime.Now - _lastCacheUpdate < _cacheDuration)
+            {
+                Debug.WriteLine("Using cached result.");
+                return _cachedOutput;
+            }
             try
             {
                 using (var process = new Process
@@ -159,18 +169,19 @@ namespace Community.PowerToys.Run.Plugin.YubicoOauthOTP
                     string output = process.StandardOutput.ReadToEnd();
                     string error = process.StandardError.ReadToEnd();
 
-
                     if (!process.WaitForExit(5000))
                     {
                         process.Kill();
                         throw new TimeoutException("The command timed out.");
                     }
 
-
                     if (process.ExitCode != 0)
                     {
                         throw new Exception($"Command failed with exit code {process.ExitCode}: {error}");
                     }
+
+                    _cachedOutput = output;
+                    _lastCacheUpdate = DateTime.Now;
 
                     return output;
                 }
