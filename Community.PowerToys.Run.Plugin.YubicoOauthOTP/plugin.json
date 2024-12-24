@@ -1,0 +1,14 @@
+{
+  "ID": "44AAE0133C0141D28208A5360318B2AB",
+  "ActionKeyword": "otp",
+  "IsGlobal": false,
+  "Name": "yubico oath OTP",
+  "Author": "dlnilsson",
+  "Version": "0.87.0",
+  "Language": "csharp",
+  "Website": "https://github.com/dlnilsson/Community.PowerToys.Run.Plugin.YubicoOauthOTP",
+  "ExecuteFileName": "Community.PowerToys.Run.Plugin.YubicoOauthOTP.dll",
+  "IcoPathDark": "Images\\yubicooauthotp.dark.png",
+  "IcoPathLight": "Images\\yubicooauthotp.light.png",
+  "DynamicLoading": false
+}

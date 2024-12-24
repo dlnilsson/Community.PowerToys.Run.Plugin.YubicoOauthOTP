@@ -1,0 +1,40 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.10.35027.167
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Community.PowerToys.Run.Plugin.YubicoOauthOTP", "Community.PowerToys.Run.Plugin.YubicoOauthOTP\Community.PowerToys.Run.Plugin.YubicoOauthOTP.csproj", "{205055B4-2BF1-4B4D-8A8F-54348941A4D3}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Community.PowerToys.Run.Plugin.YubicoOauthOTP.UnitTests", "Community.PowerToys.Run.Plugin.YubicoOauthOTP.UnitTests\Community.PowerToys.Run.Plugin.YubicoOauthOTP.UnitTests.csproj", "{24B5C5A0-5568-4716-A39D-A8FFD49BEB66}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|ARM64 = Debug|ARM64
+		Debug|x64 = Debug|x64
+		Release|ARM64 = Release|ARM64
+		Release|x64 = Release|x64
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{205055B4-2BF1-4B4D-8A8F-54348941A4D3}.Debug|ARM64.ActiveCfg = Debug|ARM64
+		{205055B4-2BF1-4B4D-8A8F-54348941A4D3}.Debug|ARM64.Build.0 = Debug|ARM64
+		{205055B4-2BF1-4B4D-8A8F-54348941A4D3}.Debug|x64.ActiveCfg = Debug|x64
+		{205055B4-2BF1-4B4D-8A8F-54348941A4D3}.Debug|x64.Build.0 = Debug|x64
+		{205055B4-2BF1-4B4D-8A8F-54348941A4D3}.Release|ARM64.ActiveCfg = Release|ARM64
+		{205055B4-2BF1-4B4D-8A8F-54348941A4D3}.Release|ARM64.Build.0 = Release|ARM64
+		{205055B4-2BF1-4B4D-8A8F-54348941A4D3}.Release|x64.ActiveCfg = Release|x64
+		{205055B4-2BF1-4B4D-8A8F-54348941A4D3}.Release|x64.Build.0 = Release|x64
+		{24B5C5A0-5568-4716-A39D-A8FFD49BEB66}.Debug|ARM64.ActiveCfg = Debug|ARM64
+		{24B5C5A0-5568-4716-A39D-A8FFD49BEB66}.Debug|ARM64.Build.0 = Debug|ARM64
+		{24B5C5A0-5568-4716-A39D-A8FFD49BEB66}.Debug|x64.ActiveCfg = Debug|x64
+		{24B5C5A0-5568-4716-A39D-A8FFD49BEB66}.Debug|x64.Build.0 = Debug|x64
+		{24B5C5A0-5568-4716-A39D-A8FFD49BEB66}.Release|ARM64.ActiveCfg = Release|ARM64
+		{24B5C5A0-5568-4716-A39D-A8FFD49BEB66}.Release|ARM64.Build.0 = Release|ARM64
+		{24B5C5A0-5568-4716-A39D-A8FFD49BEB66}.Release|x64.ActiveCfg = Release|x64
+		{24B5C5A0-5568-4716-A39D-A8FFD49BEB66}.Release|x64.Build.0 = Release|x64
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {4366AB2B-0671-488D-A918-941510B3B842}
+	EndGlobalSection
+EndGlobal
