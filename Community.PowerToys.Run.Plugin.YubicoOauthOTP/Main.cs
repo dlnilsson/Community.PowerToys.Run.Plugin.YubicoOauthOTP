@@ -1,51 +1,43 @@
 using ManagedCommon;
+using Microsoft.PowerToys.Settings.UI.Library;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 using Windows.UI;
 using Wox.Plugin;
 
 namespace Community.PowerToys.Run.Plugin.YubicoOauthOTP
 {
-    /// <summary>
-    /// Main class of this plugin that implement all used interfaces.
-    /// </summary>
-    public class Main : IPlugin, IContextMenu, IDisposable
+    public class Main : IPlugin, IContextMenu, IDisposable, ISettingProvider
     {
-        /// <summary>
-        /// ID of the plugin.
-        /// </summary>
         public static string PluginID => "44AAE0133C0141D28208A5360318B2AB";
-
-        /// <summary>
-        /// Name of the plugin.
-        /// </summary>
         public string Name => "yubico oath OTP";
-
-        /// <summary>
-        /// Description of the plugin.
-        /// </summary>
         public string Description => "Generate codes from OATH accounts stored on the YubiKey.";
-
         private PluginInitContext Context { get; set; }
-
         private string IconPath { get; set; }
-
         private bool Disposed { get; set; }
-
         private string _cachedOutput;
         private DateTime _lastCacheUpdate;
         private readonly TimeSpan _cacheDuration = TimeSpan.FromSeconds(10);
+        public Control CreateSettingPanel() => throw new NotImplementedException();
+        public static string YkmanPath { get; set; } = "ykman"; // Default to "ykman" in $PATH
 
+        public IEnumerable<PluginAdditionalOption> AdditionalOptions => [
+             new()
+                    {
+                        Key = nameof(YkmanPath),
+                        DisplayLabel = "ykman PATH",
+                        DisplayDescription = "custom path for ykman, default to ykman in $PATH",
+                        PluginOptionType = PluginAdditionalOption.AdditionalOptionType.Textbox,
+                        TextValue = YkmanPath,
+                    }
+        ];
 
-        /// <summary>
-        /// Return a filtered list, based on the given query.
-        /// </summary>
-        /// <param name="query">The query to filter the list.</param>
-        /// <returns>A filtered list, can be empty when nothing was found.</returns>
         public List<Result> Query(Query query)
         {
             try
@@ -58,10 +50,9 @@ namespace Community.PowerToys.Run.Plugin.YubicoOauthOTP
             catch (Exception ex)
             {
                 Debug.WriteLine($"Query error: {ex.Message}");
-                return new List<Result>
-                {
-                    new Result
-                    {
+                return
+                [
+                    new() {
                         Title = "Error",
                         SubTitle = ex.Message,
                         Action = _ =>
@@ -70,14 +61,10 @@ namespace Community.PowerToys.Run.Plugin.YubicoOauthOTP
                             return true;
                         }
                     }
-                };
+                ];
             }
         }
 
-        /// <summary>
-        /// Initialize the plugin with the given <see cref="PluginInitContext"/>.
-        /// </summary>
-        /// <param name="context">The <see cref="PluginInitContext"/> for this plugin.</param>
         public void Init(PluginInitContext context)
         {
             Context = context ?? throw new ArgumentNullException(nameof(context));
@@ -85,11 +72,6 @@ namespace Community.PowerToys.Run.Plugin.YubicoOauthOTP
             UpdateIconPath(Context.API.GetCurrentTheme());
         }
 
-        /// <summary>
-        /// Return a list context menu entries for a given <see cref="Result"/> (shown at the right side of the result).
-        /// </summary>
-        /// <param name="selectedResult">The <see cref="Result"/> for the list with context menu entries.</param>
-        /// <returns>A list context menu entries.</returns>
         public List<ContextMenuResult> LoadContextMenus(Result selectedResult)
         {
             if (selectedResult.ContextData is string search)
@@ -117,8 +99,7 @@ namespace Community.PowerToys.Run.Plugin.YubicoOauthOTP
         }
         private List<Account> GetAccounts()
         {
-            string output = RunCommand("ykman", "oath accounts code");
-            return ParseYkmanOutput(output);
+            return ParseYkmanOutput(RunCommand(YkmanPath, "oath accounts code"));
         }
 
         private IEnumerable<Account> FilterAccounts(IEnumerable<Account> accounts, string query)
@@ -151,7 +132,7 @@ namespace Community.PowerToys.Run.Plugin.YubicoOauthOTP
             }
             try
             {
-                using (var process = new Process
+                using var process = new Process
                 {
                     StartInfo = new ProcessStartInfo
                     {
@@ -162,29 +143,27 @@ namespace Community.PowerToys.Run.Plugin.YubicoOauthOTP
                         UseShellExecute = false,
                         CreateNoWindow = true
                     }
-                })
+                };
+                process.Start();
+
+                string output = process.StandardOutput.ReadToEnd();
+                string error = process.StandardError.ReadToEnd();
+
+                if (!process.WaitForExit(5000))
                 {
-                    process.Start();
-
-                    string output = process.StandardOutput.ReadToEnd();
-                    string error = process.StandardError.ReadToEnd();
-
-                    if (!process.WaitForExit(5000))
-                    {
-                        process.Kill();
-                        throw new TimeoutException("The command timed out.");
-                    }
-
-                    if (process.ExitCode != 0)
-                    {
-                        throw new Exception($"Command failed with exit code {process.ExitCode}: {error}");
-                    }
-
-                    _cachedOutput = output;
-                    _lastCacheUpdate = DateTime.Now;
-
-                    return output;
+                    process.Kill();
+                    throw new TimeoutException("The command timed out.");
                 }
+
+                if (process.ExitCode != 0)
+                {
+                    throw new Exception($"Command failed with exit code {process.ExitCode}: {error}");
+                }
+
+                _cachedOutput = output;
+                _lastCacheUpdate = DateTime.Now;
+
+                return output;
             }
             catch (TimeoutException ex)
             {
@@ -229,11 +208,6 @@ namespace Community.PowerToys.Run.Plugin.YubicoOauthOTP
             Dispose(true);
             GC.SuppressFinalize(this);
         }
-
-        /// <summary>
-        /// Wrapper method for <see cref="Dispose()"/> that dispose additional objects and events form the plugin itself.
-        /// </summary>
-        /// <param name="disposing">Indicate that the plugin is disposed.</param>
         protected virtual void Dispose(bool disposing)
         {
             if (Disposed || !disposing)
@@ -252,5 +226,23 @@ namespace Community.PowerToys.Run.Plugin.YubicoOauthOTP
         private void UpdateIconPath(Theme theme) => IconPath = theme == Theme.Light || theme == Theme.HighContrastWhite ? "Images/yubicooauthotp.light.png" : "Images/yubicooauthotp.dark.png";
 
         private void OnThemeChanged(Theme currentTheme, Theme newTheme) => UpdateIconPath(newTheme);
+
+        public void UpdateSettings(PowerLauncherPluginSettings settings)
+        {
+            var userProvidedPath = settings.AdditionalOptions
+                .FirstOrDefault(x => x.Key == nameof(YkmanPath))?.TextValue;
+
+            YkmanPath = !string.IsNullOrWhiteSpace(userProvidedPath)
+                ? (Directory.Exists(userProvidedPath)
+                    ? Path.Combine(userProvidedPath, "ykman")
+                    : userProvidedPath)
+                : "ykman";
+
+            if (!File.Exists(YkmanPath))
+            {
+                YkmanPath = "ykman";
+            }
+        }
     }
+
 }
