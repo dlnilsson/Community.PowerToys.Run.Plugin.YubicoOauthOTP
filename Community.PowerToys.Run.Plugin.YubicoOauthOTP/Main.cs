@@ -27,6 +27,7 @@ namespace Community.PowerToys.Run.Plugin.YubicoOauthOTP
         public Control CreateSettingPanel() => throw new NotImplementedException();
         public static string YkmanPath { get; set; } = "ykman"; // Default to "ykman" in $PATH
 
+        public static string device { get; set; }
         public IEnumerable<PluginAdditionalOption> AdditionalOptions => [
              new()
                     {
@@ -35,7 +36,20 @@ namespace Community.PowerToys.Run.Plugin.YubicoOauthOTP
                         DisplayDescription = "custom path for ykman, default to ykman in $PATH",
                         PluginOptionType = PluginAdditionalOption.AdditionalOptionType.Textbox,
                         TextValue = YkmanPath,
-                    }
+                    },
+             new()
+                    {
+                        Key = nameof(device),
+                        DisplayLabel = "device",
+                        DisplayDescription = "(Optional) specify which YubiKey to interact with by serial number\n" +
+                 "     List connected YubiKeys, only output serial number:\r\n" +
+                 "    $ ykman list --serials\n" +
+                 "   Show information about YubiKey with serial number 123456:\r\n" +
+                 "    $ ykman --device 123456 info",
+                        PluginOptionType = PluginAdditionalOption.AdditionalOptionType.Textbox,
+                        TextValue = device,
+                    },
+
         ];
 
         public List<Result> Query(Query query)
@@ -99,7 +113,14 @@ namespace Community.PowerToys.Run.Plugin.YubicoOauthOTP
         }
         private List<Account> GetAccounts()
         {
-            return ParseYkmanOutput(RunCommand(YkmanPath, "oath accounts code"));
+            var args = "";
+            if (device != null)
+            {
+                args += $"--device {device} ";
+            }
+            args += "oath accounts code";
+
+            return ParseYkmanOutput(RunCommand(YkmanPath, args));
         }
 
         private IEnumerable<Account> FilterAccounts(IEnumerable<Account> accounts, string query)
@@ -229,6 +250,9 @@ namespace Community.PowerToys.Run.Plugin.YubicoOauthOTP
 
         public void UpdateSettings(PowerLauncherPluginSettings settings)
         {
+            device = settings.AdditionalOptions
+           .FirstOrDefault(x => x.Key == nameof(device))?.TextValue;
+
             var userProvidedPath = settings.AdditionalOptions
                 .FirstOrDefault(x => x.Key == nameof(YkmanPath))?.TextValue;
 
