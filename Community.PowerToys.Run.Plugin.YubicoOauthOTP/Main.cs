@@ -13,7 +13,7 @@ using Wox.Plugin;
 
 namespace Community.PowerToys.Run.Plugin.YubicoOauthOTP
 {
-    public class Main : IPlugin, IContextMenu, IDisposable, ISettingProvider
+    public class Main : IPlugin, IContextMenu, IDisposable, ISettingProvider, IDelayedExecutionPlugin
     {
         public static string PluginID => "44AAE0133C0141D28208A5360318B2AB";
         public string Name => "yubico oath OTP";
@@ -53,6 +53,11 @@ namespace Community.PowerToys.Run.Plugin.YubicoOauthOTP
         ];
 
         public List<Result> Query(Query query)
+        {
+            List<Result> results = [];
+            return results;
+        }
+        public List<Result> Query(Query query, bool delayedExecution)
         {
             try
             {
