@@ -5,17 +5,59 @@
     <UseWPF>true</UseWPF>
     <Platforms>x64;ARM64</Platforms>
     <PlatformTarget>$(Platform)</PlatformTarget>
+    <Version>$([System.Text.RegularExpressions.Regex]::Match([System.IO.File]::ReadAllText('.\plugin.json'), '"Version": "(\S+)"').Groups[1].Value)</Version>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Community.PowerToys.Run.Plugin.Dependencies" Version="0.87.0" />
+    <PackageReference Include="Svg" Version="3.4.0" />
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Copy plugin.json -->
     <None Include="plugin.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+
+    <!-- Copy DynamicPlugin.props -->
+    <None Include="DynamicPlugin.props">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+
+    <!-- Copy image assets -->
     <None Include="Images/*.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Compile Settings.Designer.cs -->
+    <Compile Update="Properties\Settings.Designer.cs">
+      <DesignTimeSharedInput>True</DesignTimeSharedInput>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>Settings.settings</DependentUpon>
+    </Compile>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Update Settings.settings -->
+    <None Update="Properties\Settings.settings">
+      <Generator>SettingsSingleFileGenerator</Generator>
+      <LastGenOutput>Settings.Designer.cs</LastGenOutput>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Reference Svg.dll explicitly -->
+    <Reference Include="Svg, Version=3.4.0, Culture=neutral, PublicKeyToken=12a0bac221edeae2">
+      <HintPath>$(UserProfile)\.nuget\packages\svg\3.4.0\lib\netstandard2.0\Svg.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Copy Svg.dll to output directory -->
+    <None Include="$(UserProfile)\.nuget\packages\svg\3.4.0\lib\netstandard2.0\Svg.dll">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>

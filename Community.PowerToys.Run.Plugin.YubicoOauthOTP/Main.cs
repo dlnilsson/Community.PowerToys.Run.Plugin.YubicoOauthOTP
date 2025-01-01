@@ -5,14 +5,50 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using Windows.UI;
 using Wox.Plugin;
+using Wox.Plugin.Logger;
+using System.Drawing;
+using System.Drawing.Imaging;
+using Svg;
+using System.Reflection;
+
 
 namespace Community.PowerToys.Run.Plugin.YubicoOauthOTP
 {
+
+    public class IconPack
+    {
+        [JsonPropertyName("uuid")]
+        public string UUID { get; set; }
+
+        [JsonPropertyName("name")]
+        public string Name { get; set; }
+
+        [JsonPropertyName("version")]
+        public double Version { get; set; }
+
+        [JsonPropertyName("icons")]
+        public List<Icon> Icons { get; set; }
+    }
+
+    public class Icon
+    {
+        [JsonPropertyName("filename")]
+        public string Filename { get; set; }
+
+        [JsonPropertyName("category")]
+        public string Category { get; set; }
+
+        [JsonPropertyName("issuer")]
+        public List<string> Issuer { get; set; }
+    }
+
     public class Main : IPlugin, IContextMenu, IDisposable, ISettingProvider, IDelayedExecutionPlugin
     {
         public static string PluginID => "44AAE0133C0141D28208A5360318B2AB";
@@ -27,30 +63,35 @@ namespace Community.PowerToys.Run.Plugin.YubicoOauthOTP
         public Control CreateSettingPanel() => throw new NotImplementedException();
         public static string YkmanPath { get; set; } = "ykman"; // Default to "ykman" in $PATH
 
-        public static string device { get; set; }
-        public IEnumerable<PluginAdditionalOption> AdditionalOptions => [
-             new()
-                    {
-                        Key = nameof(YkmanPath),
-                        DisplayLabel = "ykman PATH",
-                        DisplayDescription = "custom path for ykman, default to ykman in $PATH",
-                        PluginOptionType = PluginAdditionalOption.AdditionalOptionType.Textbox,
-                        TextValue = YkmanPath,
-                    },
-             new()
-                    {
-                        Key = nameof(device),
-                        DisplayLabel = "device",
-                        DisplayDescription = "(Optional) specify which YubiKey to interact with by serial number\n" +
-                 "     List connected YubiKeys, only output serial number:\r\n" +
-                 "    $ ykman list --serials\n" +
-                 "   Show information about YubiKey with serial number 123456:\r\n" +
-                 "    $ ykman --device 123456 info",
-                        PluginOptionType = PluginAdditionalOption.AdditionalOptionType.Textbox,
-                        TextValue = device,
-                    },
+        public static string Device { get; set; }
 
-        ];
+        private string CacheDirectory { get; set; }
+
+        public IconPack IconPack { get;  set; }
+
+        public IEnumerable<PluginAdditionalOption> AdditionalOptions => new List<PluginAdditionalOption>
+        {
+            new()
+            {
+                Key = nameof(YkmanPath),
+                DisplayLabel = "ykman PATH",
+                DisplayDescription = "custom path for ykman, default to ykman in $PATH",
+                PluginOptionType = PluginAdditionalOption.AdditionalOptionType.Textbox,
+                TextValue = YkmanPath,
+            },
+            new()
+            {
+                Key = nameof(Device),
+                DisplayLabel = "device",
+                DisplayDescription = "(Optional) specify which YubiKey to interact with by serial number\n" +
+                                      "List connected YubiKeys, only output serial number:\r\n" +
+                                      "$ ykman list --serials\n" +
+                                      "Show information about YubiKey with serial number 123456:\r\n" +
+                                      "$ ykman --device 123456 info",
+                PluginOptionType = PluginAdditionalOption.AdditionalOptionType.Textbox,
+                TextValue = Device,
+            }
+        };
 
         public List<Result> Query(Query query)
         {
@@ -74,6 +115,7 @@ namespace Community.PowerToys.Run.Plugin.YubicoOauthOTP
                     new() {
                         Title = "Error",
                         SubTitle = ex.Message,
+                        Glyph = "\xE000", // error
                         Action = _ =>
                         {
                             MessageBox.Show(ex.Message, "YubicoOauthOTP Error", MessageBoxButton.OK, MessageBoxImage.Error);
@@ -89,7 +131,73 @@ namespace Community.PowerToys.Run.Plugin.YubicoOauthOTP
             Context = context ?? throw new ArgumentNullException(nameof(context));
             Context.API.ThemeChanged += OnThemeChanged;
             UpdateIconPath(Context.API.GetCurrentTheme());
+
+            // c# is wierd.
+            // load the Svg.dll we ship with with the plugin build directory, see .csproj.
+            AppDomain.CurrentDomain.AssemblyResolve += (sender, args) =>
+            {
+                if (args.Name.Contains("Svg"))
+                {
+                    string pluginDirectory = Context.CurrentPluginMetadata.PluginDirectory;
+                    string svgAssemblyPath = Path.Combine(pluginDirectory, "Svg.dll");
+                    if (File.Exists(svgAssemblyPath))
+                    {
+                        return Assembly.LoadFrom(svgAssemblyPath);
+                    }
+                }
+                return null;
+            };
+            // Cache directory within the plugin directory
+            CacheDirectory = Path.Combine(Context.CurrentPluginMetadata.PluginDirectory, "cache");
+            if (!Directory.Exists(CacheDirectory))
+            {
+                Directory.CreateDirectory(CacheDirectory);
+            }
+
+
+            string pluginDirectory = Context.CurrentPluginMetadata.PluginDirectory;
+            string packFilePath = Path.Combine(pluginDirectory, "pack.json");
+            string zipFilePath = Path.Combine(pluginDirectory, "aegis-icons.zip");
+            ProcessIconPack(pluginDirectory, packFilePath, zipFilePath);
         }
+
+        private void ProcessIconPack(string pluginDirectory, string packFilePath, string zipFilePath)
+        {
+            try
+            {
+                if (File.Exists(packFilePath))
+                {
+                    // Parse pack.json
+                    Log.Info($"Found {packFilePath}. Reading and parsing the file...", GetType());
+                    string jsonContent = File.ReadAllText(packFilePath);
+                    IconPack = JsonSerializer.Deserialize<IconPack>(jsonContent);
+                    Log.Info($"Parsed pack.json: Name={IconPack.Name}, Version={IconPack.Version}, Icons Count={IconPack.Icons?.Count}", GetType());
+                }
+                else if (File.Exists(zipFilePath))
+                {
+                    System.IO.Compression.ZipFile.ExtractToDirectory(zipFilePath, pluginDirectory, true);
+                    Log.Info($"Extracted {zipFilePath} to {pluginDirectory}", GetType());
+
+                    if (File.Exists(packFilePath))
+                    {
+                        ProcessIconPack(pluginDirectory, packFilePath, zipFilePath);
+                    }
+                    else
+                    {
+                        Log.Info($"Pack.json not found after extracting {zipFilePath}.", GetType());
+                    }
+                }
+                else
+                {
+                    Log.Info($"Neither {packFilePath} nor {zipFilePath} found. Skipping icon pack processing.", GetType());
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Info($"Error during icon pack processing: {ex.Message}", GetType());
+            }
+        }
+
 
         public List<ContextMenuResult> LoadContextMenus(Result selectedResult)
         {
@@ -119,29 +227,124 @@ namespace Community.PowerToys.Run.Plugin.YubicoOauthOTP
         private List<Account> GetAccounts()
         {
             var args = "";
-            if (device != null)
+            if (Device != null)
             {
-                args += $"--device {device} ";
+                args += $"--device {Device} ";
             }
             args += "oath accounts code";
 
             return ParseYkmanOutput(RunCommand(YkmanPath, args));
         }
 
-        private IEnumerable<Account> FilterAccounts(IEnumerable<Account> accounts, string query)
+        public IEnumerable<Account> FilterAccounts(IEnumerable<Account> accounts, string query)
         {
             if (string.IsNullOrWhiteSpace(query))
                 return accounts;
 
             return accounts.Where(account => account.Name.Contains(query, StringComparison.OrdinalIgnoreCase));
         }
+        private void ConvertSvgToPng(string svgFilePath, string pngFilePath, int width = 48, int height = 48)
+        {
+            try
+            {
+                // Load the SVG document
+                var svgDocument = SvgDocument.Open(svgFilePath);
+
+                // Set dimensions (optional)
+                svgDocument.Width = width;
+                svgDocument.Height = height;
+
+                // Render the SVG to a bitmap
+                using var bitmap = svgDocument.Draw();
+
+                // Save as PNG
+                bitmap.Save(pngFilePath, ImageFormat.Png);
+            }
+            catch (Exception ex)
+            {
+                Log.Info($"Failed to convert {svgFilePath} to PNG: {ex.Message}", GetType());
+                throw;
+            }
+        }
+
+        public string FindIconForAccount(string accountName)
+        {
+            if (IconPack == null || IconPack.Icons == null)
+            {
+                Log.Info("IconPack is null or does not contain icons. Using default icon.", GetType());
+                return null;
+            }
+
+            var original = accountName;
+            string sanitizedAccountName = Regex.Replace(accountName, @"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", "", RegexOptions.IgnoreCase).Trim();
+            string q = sanitizedAccountName;
+            Log.Info($"Sanitized Account Name: {sanitizedAccountName}", GetType());
+            if (string.IsNullOrWhiteSpace(sanitizedAccountName))
+            {
+                Log.Info($"Sanitized Account {sanitizedAccountName} Name is empty after email removal. Using {original}", GetType());
+                q = original;
+                return null;
+            }
+
+
+            var matchingIcon = IconPack.Icons.FirstOrDefault(icon =>
+                icon.Issuer.Any(issuer =>
+                    string.Equals(sanitizedAccountName, issuer, StringComparison.OrdinalIgnoreCase)));
+
+            matchingIcon ??= IconPack.Icons.FirstOrDefault(icon =>
+                    icon.Issuer.Any(issuer =>
+                        sanitizedAccountName.Contains(issuer, StringComparison.InvariantCultureIgnoreCase)));
+
+            if (matchingIcon != null)
+            {
+                string cacheFilePath = Path.Combine(CacheDirectory, $"{Path.GetFileNameWithoutExtension(matchingIcon.Filename)}.png");
+
+                if (File.Exists(cacheFilePath))
+                {
+                    Log.Info($"Cache hit for {accountName} - {cacheFilePath}", GetType());
+                    return cacheFilePath;
+                }
+
+                string svgFilePath = Path.Combine(
+                    Context.CurrentPluginMetadata.PluginDirectory,
+                    "icons",
+                    matchingIcon.Filename.Replace("icons/", "").Replace("\\", "/")
+                );
+
+                if (File.Exists(svgFilePath))
+                {
+                    Log.Info($"SVG file FOUND for {accountName}: {svgFilePath}", GetType());
+                    try
+                    {
+                        ConvertSvgToPng(svgFilePath, cacheFilePath);
+                        Log.Info($"Converted {svgFilePath} to PNG and cached as {cacheFilePath}", GetType());
+                        return cacheFilePath;
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Info($"Error converting {svgFilePath} to PNG: {ex.Message}", GetType());
+                    }
+                }
+            }
+
+            Log.Info($"No match found for {accountName}", GetType());
+            return null;
+        }
+
+
+
+
 
         private Result CreateResult(Account account)
         {
+            string iconPath = FindIconForAccount(account.Name);
+            Log.Info($"CreateResult {iconPath}  for {account.Name}", GetType());
+
             return new Result
             {
                 Title = account.Name,
                 SubTitle = $"Code: {account.Code}",
+                IcoPath = iconPath,
                 Action = _ =>
                 {
                     Clipboard.SetText(account.Code);
@@ -149,7 +352,7 @@ namespace Community.PowerToys.Run.Plugin.YubicoOauthOTP
                 }
             };
         }
-        private string RunCommand(string fileName, string arguments)
+        public string RunCommand(string fileName, string arguments)
         {
             if (_cachedOutput != null && DateTime.Now - _lastCacheUpdate < _cacheDuration)
             {
@@ -203,7 +406,7 @@ namespace Community.PowerToys.Run.Plugin.YubicoOauthOTP
             }
         }
 
-        private List<Account> ParseYkmanOutput(string output)
+        public List<Account> ParseYkmanOutput(string output)
         {
             var accounts = new List<Account>();
 
@@ -255,8 +458,8 @@ namespace Community.PowerToys.Run.Plugin.YubicoOauthOTP
 
         public void UpdateSettings(PowerLauncherPluginSettings settings)
         {
-            device = settings.AdditionalOptions
-           .FirstOrDefault(x => x.Key == nameof(device))?.TextValue;
+            Device = settings.AdditionalOptions
+           .FirstOrDefault(x => x.Key == nameof(Device))?.TextValue;
 
             var userProvidedPath = settings.AdditionalOptions
                 .FirstOrDefault(x => x.Key == nameof(YkmanPath))?.TextValue;
