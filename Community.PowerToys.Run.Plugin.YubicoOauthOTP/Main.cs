@@ -13,15 +13,14 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using Wox.Plugin;
 using Wox.Plugin.Logger;
-using System.Drawing;
-using System.Drawing.Imaging;
 using Svg;
 using System.Reflection;
+using System.Drawing.Imaging;
 
 
 namespace Community.PowerToys.Run.Plugin.YubicoOauthOTP
 {
-
+    // https://github.com/beemdevelopment/Aegis/blob/master/docs/iconpacks.md
     public class IconPack
     {
         [JsonPropertyName("uuid")]
@@ -104,12 +103,12 @@ namespace Community.PowerToys.Run.Plugin.YubicoOauthOTP
             {
                 var accounts = GetAccounts();
                 return FilterAccounts(accounts, query.Search)
-                    .Select(account => CreateResult(account))
+                    .Select(CreateResult)
                     .ToList();
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Query error: {ex.Message}");
+                Log.Info($"Query error: {ex.Message}", GetType());
                 return
                 [
                     new() {
@@ -147,7 +146,7 @@ namespace Community.PowerToys.Run.Plugin.YubicoOauthOTP
                 }
                 return null;
             };
-            // Cache directory within the plugin directory
+
             CacheDirectory = Path.Combine(Context.CurrentPluginMetadata.PluginDirectory, "cache");
             if (!Directory.Exists(CacheDirectory))
             {
@@ -167,34 +166,29 @@ namespace Community.PowerToys.Run.Plugin.YubicoOauthOTP
             {
                 if (File.Exists(packFilePath))
                 {
-                    // Parse pack.json
-                    Log.Info($"Found {packFilePath}. Reading and parsing the file...", GetType());
+                    Log.Debug($"Found {packFilePath}. Reading and parsing the file...", GetType());
                     string jsonContent = File.ReadAllText(packFilePath);
                     IconPack = JsonSerializer.Deserialize<IconPack>(jsonContent);
-                    Log.Info($"Parsed pack.json: Name={IconPack.Name}, Version={IconPack.Version}, Icons Count={IconPack.Icons?.Count}", GetType());
+                    Log.Debug($"Parsed pack.json: Name={IconPack.Name}, Version={IconPack.Version}, Icons Count={IconPack.Icons?.Count}", GetType());
                 }
                 else if (File.Exists(zipFilePath))
                 {
                     System.IO.Compression.ZipFile.ExtractToDirectory(zipFilePath, pluginDirectory, true);
-                    Log.Info($"Extracted {zipFilePath} to {pluginDirectory}", GetType());
+                    Log.Debug($"Extracted {zipFilePath} to {pluginDirectory}", GetType());
 
                     if (File.Exists(packFilePath))
                     {
                         ProcessIconPack(pluginDirectory, packFilePath, zipFilePath);
                     }
-                    else
-                    {
-                        Log.Info($"Pack.json not found after extracting {zipFilePath}.", GetType());
-                    }
                 }
                 else
                 {
-                    Log.Info($"Neither {packFilePath} nor {zipFilePath} found. Skipping icon pack processing.", GetType());
+                    Log.Debug($"Neither {packFilePath} nor {zipFilePath} found. Skipping icon pack processing.", GetType());
                 }
             }
             catch (Exception ex)
             {
-                Log.Info($"Error during icon pack processing: {ex.Message}", GetType());
+                Log.Info($"Error during icon pack processing: {packFilePath} {zipFilePath} {ex.Message}", GetType());
             }
         }
 
@@ -247,17 +241,10 @@ namespace Community.PowerToys.Run.Plugin.YubicoOauthOTP
         {
             try
             {
-                // Load the SVG document
                 var svgDocument = SvgDocument.Open(svgFilePath);
-
-                // Set dimensions (optional)
                 svgDocument.Width = width;
                 svgDocument.Height = height;
-
-                // Render the SVG to a bitmap
                 using var bitmap = svgDocument.Draw();
-
-                // Save as PNG
                 bitmap.Save(pngFilePath, ImageFormat.Png);
             }
             catch (Exception ex)
@@ -269,31 +256,35 @@ namespace Community.PowerToys.Run.Plugin.YubicoOauthOTP
 
         public string FindIconForAccount(string accountName)
         {
-            if (IconPack == null || IconPack.Icons == null)
+            if (IconPack == null || IconPack?.Icons == null)
             {
                 Log.Info("IconPack is null or does not contain icons. Using default icon.", GetType());
                 return null;
             }
 
-            var original = accountName;
+            string original = accountName;
+            if (accountName.Contains(":"))
+            {
+                accountName = accountName.Split(':', 2)[0].Trim();
+            }
+
             string sanitizedAccountName = Regex.Replace(accountName, @"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", "", RegexOptions.IgnoreCase).Trim();
             string q = sanitizedAccountName;
-            Log.Info($"Sanitized Account Name: {sanitizedAccountName}", GetType());
+
             if (string.IsNullOrWhiteSpace(sanitizedAccountName))
             {
-                Log.Info($"Sanitized Account {sanitizedAccountName} Name is empty after email removal. Using {original}", GetType());
                 q = original;
                 return null;
             }
 
-
             var matchingIcon = IconPack.Icons.FirstOrDefault(icon =>
                 icon.Issuer.Any(issuer =>
-                    string.Equals(sanitizedAccountName, issuer, StringComparison.OrdinalIgnoreCase)));
+                    string.Equals(q, issuer, StringComparison.OrdinalIgnoreCase)));
+
 
             matchingIcon ??= IconPack.Icons.FirstOrDefault(icon =>
-                    icon.Issuer.Any(issuer =>
-                        sanitizedAccountName.Contains(issuer, StringComparison.InvariantCultureIgnoreCase)));
+                icon.Issuer.Any(issuer =>
+                    q.Contains(issuer, StringComparison.InvariantCultureIgnoreCase)));
 
             if (matchingIcon != null)
             {
@@ -301,7 +292,6 @@ namespace Community.PowerToys.Run.Plugin.YubicoOauthOTP
 
                 if (File.Exists(cacheFilePath))
                 {
-                    Log.Info($"Cache hit for {accountName} - {cacheFilePath}", GetType());
                     return cacheFilePath;
                 }
 
@@ -313,11 +303,9 @@ namespace Community.PowerToys.Run.Plugin.YubicoOauthOTP
 
                 if (File.Exists(svgFilePath))
                 {
-                    Log.Info($"SVG file FOUND for {accountName}: {svgFilePath}", GetType());
                     try
                     {
                         ConvertSvgToPng(svgFilePath, cacheFilePath);
-                        Log.Info($"Converted {svgFilePath} to PNG and cached as {cacheFilePath}", GetType());
                         return cacheFilePath;
                     }
                     catch (Exception ex)
@@ -326,19 +314,12 @@ namespace Community.PowerToys.Run.Plugin.YubicoOauthOTP
                     }
                 }
             }
-
-            Log.Info($"No match found for {accountName}", GetType());
             return null;
         }
-
-
-
-
 
         private Result CreateResult(Account account)
         {
             string iconPath = FindIconForAccount(account.Name);
-            Log.Info($"CreateResult {iconPath}  for {account.Name}", GetType());
 
             return new Result
             {
@@ -356,7 +337,6 @@ namespace Community.PowerToys.Run.Plugin.YubicoOauthOTP
         {
             if (_cachedOutput != null && DateTime.Now - _lastCacheUpdate < _cacheDuration)
             {
-                Debug.WriteLine("Using cached result.");
                 return _cachedOutput;
             }
             try
@@ -396,13 +376,13 @@ namespace Community.PowerToys.Run.Plugin.YubicoOauthOTP
             }
             catch (TimeoutException ex)
             {
-                Debug.WriteLine($"Timeout: {ex.Message}");
+                Log.Debug($"ykman command timeout {ex.Message}", GetType());
                 throw new Exception("The CLI command timed out. Please ensure the Yubico CLI is installed and accessible.");
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Command Error: {ex.Message}");
-                throw new Exception($"Error running CLI command: {ex.Message}");
+                Log.Debug($"ykman command error {ex.Message}", GetType());
+                throw new Exception($"Error running CLI command: {fileName} {arguments} {ex.Message}");
             }
         }
 
