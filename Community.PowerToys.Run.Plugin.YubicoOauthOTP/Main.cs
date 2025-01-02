@@ -298,14 +298,27 @@ namespace Community.PowerToys.Run.Plugin.YubicoOauthOTP
                 return null;
             }
 
-            var matchingIcon = IconPack.Icons.FirstOrDefault(icon =>
-                icon.Issuer.Any(issuer =>
-                    string.Equals(q, issuer, StringComparison.OrdinalIgnoreCase)));
+            string domainName = null;
+            if (accountName.Contains("."))
+            {
+                domainName = accountName.Split('.')[0].Trim();
+            }
 
+            var potentialMatches = IconPack.Icons
+                .Where(icon => icon.Issuer.Any(issuer =>
+                    q.Equals(issuer, StringComparison.Ordinal) || // Exact case-sensitive match
+                    (q.Contains(issuer, StringComparison.Ordinal) && issuer.Length >= 2) || // Partial case-sensitive match
+                    (domainName != null && domainName.Equals(issuer, StringComparison.OrdinalIgnoreCase)))) // Match domain names
+                .OrderByDescending(icon => icon.Issuer.Max(issuer =>
+                    q.Equals(issuer, StringComparison.Ordinal) ? int.MaxValue : issuer.Length))
+                .ToList();
 
-            matchingIcon ??= IconPack.Icons.FirstOrDefault(icon =>
-                icon.Issuer.Any(issuer =>
-                    q.Contains(issuer, StringComparison.InvariantCultureIgnoreCase)));
+            if (potentialMatches.Count == 0)
+            {
+                return null;
+            }
+
+            var matchingIcon = potentialMatches.FirstOrDefault();
 
             if (matchingIcon != null)
             {
