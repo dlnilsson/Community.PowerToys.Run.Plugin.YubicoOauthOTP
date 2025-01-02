@@ -10,6 +10,8 @@
 ## Installation
 - Download https://github.com/dlnilsson/Community.PowerToys.Run.Plugin.YubicoOauthOTP/releases/download/v0.87.0/YubicoOauthOTP.v0.87.0-x86.zip
 - Close PowerToys
-- Extract the archive to `%LOCALAPPDATA%\Microsoft\PowerToys\PowerToys Run\Plugins`
+- Extract the archive to `%LOCALAPPDATA%\Microsoft\PowerToys\PowerToys Run\Plugins\ykman`
 - Open PowerToys
 
+
+Custom icon packs can be used. Icon packs must be in the [Aegis Icon Pack format](https://github.com/beemdevelopment/Aegis/blob/master/docs/iconpacks.md). You can use one of the existing pre-built packages from https://aegis-icons.github.io/ or https://github.com/alexbakker/aegis-simple-icons, or you can create your own. Place the icon zip file in the plugin directory `%LOCALAPPDATA%\Microsoft\PowerToys\PowerToys Run\Plugins\ykman`.
