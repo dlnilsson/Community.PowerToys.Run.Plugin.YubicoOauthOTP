@@ -1,8 +1,5 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Reflection;
 using Wox.Plugin;
 
 namespace Community.PowerToys.Run.Plugin.YubicoOauthOTP.UnitTests

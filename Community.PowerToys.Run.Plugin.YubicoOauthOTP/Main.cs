@@ -1,10 +1,13 @@
 using ManagedCommon;
 using Microsoft.PowerToys.Settings.UI.Library;
+using Svg;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
@@ -13,9 +16,6 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using Wox.Plugin;
 using Wox.Plugin.Logger;
-using Svg;
-using System.Reflection;
-using System.Drawing.Imaging;
 
 
 namespace Community.PowerToys.Run.Plugin.YubicoOauthOTP
@@ -66,7 +66,7 @@ namespace Community.PowerToys.Run.Plugin.YubicoOauthOTP
 
         private string CacheDirectory { get; set; }
 
-        public IconPack IconPack { get;  set; }
+        public IconPack IconPack { get; set; }
 
         public IEnumerable<PluginAdditionalOption> AdditionalOptions => new List<PluginAdditionalOption>
         {
@@ -153,45 +153,60 @@ namespace Community.PowerToys.Run.Plugin.YubicoOauthOTP
                 Directory.CreateDirectory(CacheDirectory);
             }
 
-
-            string pluginDirectory = Context.CurrentPluginMetadata.PluginDirectory;
-            string packFilePath = Path.Combine(pluginDirectory, "pack.json");
-            string zipFilePath = Path.Combine(pluginDirectory, "aegis-icons.zip");
-            ProcessIconPack(pluginDirectory, packFilePath, zipFilePath);
+            ProcessIconPack(Context.CurrentPluginMetadata.PluginDirectory);
         }
 
-        private void ProcessIconPack(string pluginDirectory, string packFilePath, string zipFilePath)
+        private void ProcessIconPack(string pluginDirectory)
         {
+            var packFilePath = Path.Combine(pluginDirectory, "pack.json");
+            Action<string> processPackJson = (filePath) =>
+            {
+                try
+                {
+                    string jsonContent = File.ReadAllText(filePath);
+                    IconPack = JsonSerializer.Deserialize<IconPack>(jsonContent);
+                    Log.Info($"Processed pack.json: Name={IconPack.Name}, Version={IconPack.Version}, Icons Count={IconPack.Icons?.Count}", GetType());
+                }
+                catch (Exception ex)
+                {
+                    Log.Info($"Error processing pack.json: {ex.Message}", GetType());
+                }
+            };
+
+            if (File.Exists(packFilePath))
+            {
+                processPackJson(packFilePath);
+                return;
+            }
+
             try
             {
-                if (File.Exists(packFilePath))
+                var zipFiles = Directory.GetFiles(pluginDirectory, "*.zip");
+                foreach (var zipFilePath in zipFiles)
                 {
-                    Log.Debug($"Found {packFilePath}. Reading and parsing the file...", GetType());
-                    string jsonContent = File.ReadAllText(packFilePath);
-                    IconPack = JsonSerializer.Deserialize<IconPack>(jsonContent);
-                    Log.Debug($"Parsed pack.json: Name={IconPack.Name}, Version={IconPack.Version}, Icons Count={IconPack.Icons?.Count}", GetType());
-                }
-                else if (File.Exists(zipFilePath))
-                {
-                    System.IO.Compression.ZipFile.ExtractToDirectory(zipFilePath, pluginDirectory, true);
-                    Log.Debug($"Extracted {zipFilePath} to {pluginDirectory}", GetType());
-
-                    if (File.Exists(packFilePath))
+                    using (var archive = System.IO.Compression.ZipFile.OpenRead(zipFilePath))
                     {
-                        ProcessIconPack(pluginDirectory, packFilePath, zipFilePath);
+                        var packEntry = archive.Entries.FirstOrDefault(e => e.FullName.Equals("pack.json", StringComparison.OrdinalIgnoreCase));
+
+                        if (packEntry != null)
+                        {
+                            System.IO.Compression.ZipFile.ExtractToDirectory(zipFilePath, pluginDirectory, true);
+                            Log.Debug($"Extracted all contents of {zipFilePath} to {pluginDirectory}", GetType());
+                            if (File.Exists(packFilePath))
+                            {
+                                processPackJson(packFilePath);
+                            }
+                            return;
+                        }
                     }
                 }
-                else
-                {
-                    Log.Debug($"Neither {packFilePath} nor {zipFilePath} found. Skipping icon pack processing.", GetType());
-                }
+                Log.Debug("No valid pack.json found in any zip files.", GetType());
             }
             catch (Exception ex)
             {
-                Log.Info($"Error during icon pack processing: {packFilePath} {zipFilePath} {ex.Message}", GetType());
+                Log.Info($"Error during icon pack processing: {ex.Message}", GetType());
             }
         }
-
 
         public List<ContextMenuResult> LoadContextMenus(Result selectedResult)
         {
@@ -254,6 +269,12 @@ namespace Community.PowerToys.Run.Plugin.YubicoOauthOTP
             }
         }
 
+        private string NormalizeFilePath(string pluginDirectory, string relativeFilePath)
+        {
+            string normalizedPath = relativeFilePath.Replace("/", Path.DirectorySeparatorChar.ToString());
+            return Path.Combine(pluginDirectory, normalizedPath);
+        }
+
         public string FindIconForAccount(string accountName)
         {
             if (IconPack == null || IconPack?.Icons == null)
@@ -295,11 +316,10 @@ namespace Community.PowerToys.Run.Plugin.YubicoOauthOTP
                     return cacheFilePath;
                 }
 
-                string svgFilePath = Path.Combine(
-                    Context.CurrentPluginMetadata.PluginDirectory,
-                    "icons",
-                    matchingIcon.Filename.Replace("icons/", "").Replace("\\", "/")
-                );
+                string svgFilePath = NormalizeFilePath(
+                      Context.CurrentPluginMetadata.PluginDirectory,
+                      matchingIcon.Filename
+                  );
 
                 if (File.Exists(svgFilePath))
                 {
