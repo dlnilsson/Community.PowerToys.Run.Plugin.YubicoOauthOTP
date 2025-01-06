@@ -8,7 +8,7 @@
 - PowerToys minimum version 0.87.1
 
 ## Installation
-- Download https://github.com/dlnilsson/Community.PowerToys.Run.Plugin.YubicoOauthOTP/releases/download/v0.87.0/YubicoOauthOTP.v0.87.0-x86.zip
+- Download https://github.com/dlnilsson/Community.PowerToys.Run.Plugin.YubicoOauthOTP/releases/download/v1.0.0/YubicoOauthOTP.v1.0.0-x64.zip
 - Close PowerToys
 - Extract the archive to `%LOCALAPPDATA%\Microsoft\PowerToys\PowerToys Run\Plugins\ykman`
 - Open PowerToys

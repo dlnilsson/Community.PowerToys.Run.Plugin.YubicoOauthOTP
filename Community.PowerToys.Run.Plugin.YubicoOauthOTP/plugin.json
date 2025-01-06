@@ -4,7 +4,7 @@
   "IsGlobal": false,
   "Name": "yubico oath OTP",
   "Author": "dlnilsson",
-  "Version": "0.87.0",
+  "Version": "1.0.0",
   "Language": "csharp",
   "Website": "https://github.com/dlnilsson/Community.PowerToys.Run.Plugin.YubicoOauthOTP",
   "ExecuteFileName": "Community.PowerToys.Run.Plugin.YubicoOauthOTP.dll",
